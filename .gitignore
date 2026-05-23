@@ -36,6 +36,7 @@ google-services.json
 *.hprof
 
 # Custom Ignores
+libxposed-api/
 Documents/
 Change.md
 RecentsView.md
