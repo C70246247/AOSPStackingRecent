@@ -1,0 +1,6 @@
+# Xposed 模块属性文件，定义了模块在管理器中显示的名称和描述。
+name=AOSPStackingRecent
+description=iOS style stacked recents for Launcher3/Pixel Launcher
+minApiVersion=100
+targetApiVersion=100
+staticScope=false

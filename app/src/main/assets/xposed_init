@@ -1,0 +1,2 @@
+# Xposed 框架的入口配置文件，指向模块的主入口类。
+com.buildsession.aospstackingrecent.MainModule
