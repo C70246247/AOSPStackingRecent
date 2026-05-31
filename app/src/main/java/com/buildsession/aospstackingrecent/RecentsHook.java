@@ -13,7 +13,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.XC_MethodHook;
 
-`/**
+/**
  * 核心 Hook 逻辑，通过修改 RecentsView 实现多任务界面的卡片堆叠视觉效果。
  */
 public class RecentsHook {
@@ -111,7 +111,7 @@ public class RecentsHook {
                          int original = (int) param.getResult();
                          float deltaFactor = spacingFactor - DEFAULT_SPACING;
                          int deltaPx = Math.round(deltaFactor * 10f);
-                         param.setResult(original + deltaPx);
+                         param.setResult(original + deltaPx - 120);
                      }
                  });
                  XposedBridge.log("AOSPStackingRecent: Hooked getPageSpacing");
@@ -464,7 +464,9 @@ public class RecentsHook {
                         }
 
                         // Pull: ONLY count cards actively being swiped up
-                        if (otherDistance > originalDistance && otherProgress > 0.01f) {
+                        // We restrict this to cards between us and the focus center (plus a buffer)
+                        // to avoid right-side dismissals from pulling left-side cards.
+                        if (otherDistance > originalDistance && otherDistance < 50f && otherProgress > 0.01f) {
                             dismissPullProgress += (1.0f - otherWeight);
                         }
                     }
@@ -532,28 +534,64 @@ public class RecentsHook {
                     child.setTranslationZ(targetZ);
                 } else {
                     // Right side cards: stable anchor
-                    float absDistance = Math.abs(originalDistance);
+                    float dismissPullProgressRight = 0f;
+                    for (int j = 0; j < childCount; j++) {
+                        View other = recentsView.getChildAt(j);
+                        if (other == null || other == child || !taskViewClass.isInstance(other)) continue;
+                        Float otherDistance = (Float) XposedHelpers.getAdditionalInstanceField(other, "apple_stack_distance");
+                        Float otherWeight = (Float) XposedHelpers.getAdditionalInstanceField(other, "apple_layout_weight");
+                        Float otherProgress = (Float) XposedHelpers.getAdditionalInstanceField(other, "apple_dismiss_progress");
+                        if (otherDistance == null || otherWeight == null || otherProgress == null) continue;
+
+                        // If a card closer to the center is being dismissed, pull this card left.
+                         // We ONLY do this if the dismissed card is also on the right side (dist > 50).
+                         // If the center card is dismissed, only left cards should move right.
+                         if (otherDistance < originalDistance && otherDistance > 50f && otherProgress > 0.01f) {
+                             dismissPullProgressRight += (1.0f - otherWeight);
+                         }
+                    }
+
+                    float scrollUnit = 0f;
+                    Object savedStep = XposedHelpers.getAdditionalInstanceField(recentsView, "apple_last_scroll_step");
+                    if (savedStep instanceof Float) {
+                        scrollUnit = (Float) savedStep;
+                    }
+                    if (scrollUnit <= 0) {
+                        scrollUnit = measuredSize * 0.75f;
+                    }
+
+                    // Pull Unloading Mechanism for Right Side:
+                    // We use a simpler pull for the right side to maintain spacing between cards.
+                    float effectivePull = -dismissPullProgressRight * scrollUnit;
+                    float virtualDistance = originalDistance + effectivePull;
+                    float absVirtualDistance = Math.abs(virtualDistance);
+
                     boolean isLastChild = (i == childCount - 1);
                     float targetZ = isLastChild ? 200f : (150f - i);
                     XposedHelpers.setAdditionalInstanceField(child, "apple_target_z", targetZ);
                     child.setTranslationZ(targetZ);
 
-                    float peekRightMax = clamp(spacingFactor * 15f, measuredSize * 0.04f, measuredSize * 0.15f);
-                    float decayFactor = Math.min(1.0f, absDistance / (measuredSize * 1.2f));
-                    float extraTranslation = -peekRightMax * decayFactor;
+                    // Increase negative translation to pull right cards closer
+                    float peekRightMax = clamp(spacingFactor * 35f, measuredSize * 0.08f, measuredSize * 0.25f);
+                    float decayFactor = Math.min(1.0f, absVirtualDistance / (measuredSize * 0.8f)); 
+                    float extraTranslation = (-peekRightMax * decayFactor) + effectivePull;
                     
                     Float currentOffsetRightObj = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     float currentOffsetRight = currentOffsetRightObj != null ? currentOffsetRightObj : 0f;
-                    float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * 0.3f;
+                    
+                    // Higher responsiveness for dismiss animations
+                    float targetLerp = (dismissPullProgressRight > 0.01f && absVirtualDistance > 30f) ? 0.72f : 1.0f;
+                    float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * (0.4f * targetLerp + 0.6f * 1.0f);
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
                     XposedHelpers.callMethod(child, "applyTranslationX");
 
-                    float progress = Math.min(1.0f, absDistance / (measuredSize * 2.0f));
-                    float scale = 1.0f - (progress * 0.05f);
+                    // Scale logic: make it slightly LARGER as it moves right to create depth hierarchy
+                    float progress = Math.min(1.0f, absVirtualDistance / (measuredSize * 1.5f));
+                    float scale = 1.0f + (progress * 0.04f); 
                     child.setScaleX(scale);
                     child.setScaleY(scale);
-                    child.setAlpha(1.0f - (progress * 0.05f));
+                    child.setAlpha(1.0f - (progress * 0.02f));
                 }
 
                 if (!isDismissing && dismissTranslationXField != null) {
@@ -749,13 +787,13 @@ public class RecentsHook {
         try {
             int newSpacing;
             try {
-                newSpacing = (int) XposedHelpers.callMethod(recentsView, "getPageSpacing");
-            } catch (Throwable ignored) {
-                prefs.reload();
-                float spacingFactor = prefs.getFloat(KEY_SPACING, DEFAULT_SPACING);
-                float deltaFactor = spacingFactor - DEFAULT_SPACING;
-                newSpacing = Math.round(deltaFactor * 10f);
-            }
+                 newSpacing = (int) XposedHelpers.callMethod(recentsView, "getPageSpacing");
+             } catch (Throwable ignored) {
+                 prefs.reload();
+                 float spacingFactor = prefs.getFloat(KEY_SPACING, DEFAULT_SPACING);
+                 float deltaFactor = spacingFactor - DEFAULT_SPACING;
+                 newSpacing = Math.round(deltaFactor * 10f) - 120;
+             }
             
             // 1. Update the mPageSpacing field in PagedView
             Field f = XposedHelpers.findFieldIfExists(recentsView.getClass(), "mPageSpacing");

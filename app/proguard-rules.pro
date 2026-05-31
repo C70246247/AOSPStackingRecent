@@ -17,7 +17,7 @@
 #-keepattributes SourceFile,LineNumberTable
 
 # Keep Xposed Module Entry Point
--keep class com.buildsession.pixelapplerecent.MainModule { *; }
+-keep class com.buildsession.aospstackingrecent.MainModule { *; }
 
 # Keep LibXposed classes
 -keep class io.github.libxposed.** { *; }

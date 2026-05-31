@@ -77,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
         fixPermissions();
 
         TextView statusView = new TextView(this);
-        statusView.setText("\n模块已激活\n\n当前版本已固化最佳堆叠参数，无需手动调节。");
+        statusView.setText("前往LSP管理器激活模块即可使用");
         statusView.setGravity(android.view.Gravity.CENTER);
         statusView.setPadding(0, dpToPx(48), 0, 0);
         layout.addView(statusView);

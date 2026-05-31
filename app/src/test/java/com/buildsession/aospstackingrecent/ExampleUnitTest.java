@@ -1,4 +1,4 @@
-package com.buildsession.pixelapplerecent;
+package com.buildsession.aospstackingrecent;
 
 import org.junit.Test;
 
