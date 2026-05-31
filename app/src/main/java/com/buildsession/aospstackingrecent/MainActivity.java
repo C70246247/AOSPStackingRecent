@@ -79,8 +79,23 @@ public class MainActivity extends AppCompatActivity {
         TextView statusView = new TextView(this);
         statusView.setText("前往LSP管理器激活模块即可使用");
         statusView.setGravity(android.view.Gravity.CENTER);
-        statusView.setPadding(0, dpToPx(48), 0, 0);
+        statusView.setPadding(0, dpToPx(48), 0, dpToPx(24));
         layout.addView(statusView);
+
+        TextView githubView = new TextView(this);
+        githubView.setText("查看项目 GitHub 页面");
+        githubView.setTextColor(0xFF007AFF); // iOS style blue
+        githubView.setGravity(android.view.Gravity.CENTER);
+        githubView.setPadding(0, dpToPx(16), 0, dpToPx(16));
+        githubView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+                intent.setData(android.net.Uri.parse("https://github.com/C70246247/AOSPStackingRecent"));
+                startActivity(intent);
+            }
+        });
+        layout.addView(githubView);
 
         setContentView(scrollView);
     }
