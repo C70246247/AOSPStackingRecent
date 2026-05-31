@@ -3,6 +3,7 @@
 A Xposed module that brings the elegant iOS-style card stacking recents (multi-tasking) effect to AOSP Launcher3 and Pixel Launcher.
 
 ## 📱 Preview
+![Preview](Preview/preview.gif)
 
 ## ✨ Features
 - **iOS-style Stacking**: Implements realistic card overlapping and scaling effects by hooking into `RecentsView`.
